@@ -1,51 +1,37 @@
 #!/usr/bin/env bun
-/**
- * agent-consensus-engine - Consensus protocol for agent collectives to agree on shared facts or decisions
- * Built by Retsumdk
- */
+import { ConsensusEngine } from "./engine";
+import { AgentNetwork } from "./network";
+import { ConsensusConfig } from "./types";
+import { Logger } from "./utils/logger";
 
-import { Command } from "commander";
-import { existsSync, readFileSync } from "fs";
-import { join } from "path";
+const mainLogger = new Logger("Main");
 
-interface Config {
-  apiKey?: string;
-  baseUrl: string;
-  timeout: number;
-  retries: number;
-}
+async function run() {
+  mainLogger.info("Initializing Agent Consensus Engine demo...");
 
-const DEFAULTS: Config = {
-  baseUrl: "https://api.example.com",
-  timeout: 30000,
-  retries: 3,
-};
+  const config: ConsensusConfig = {
+    quorumThreshold: 0.6, // 60% majority
+    timeoutMs: 5000,
+    persistenceEnabled: false,
+    storagePath: "./data",
+  };
 
-function loadConfig(): Config {
-  const cfgPath = join(process.cwd(), "config.json");
-  if (existsSync(cfgPath)) {
-    try {
-      return { ...DEFAULTS, ...JSON.parse(readFileSync(cfgPath, "utf-8")) };
-    } catch { /* ignore */ }
+  const network = new AgentNetwork();
+
+  // Create a collective of 5 agents
+  for (let i = 1; i <= 5; i++) {
+    const id = `agent-${i}`;
+    const engine = new ConsensusEngine(id, config);
+    network.register(engine, id);
   }
-  return { ...DEFAULTS };
+
+  // Run a simulation scenario
+  await network.simulateScenario();
+
+  mainLogger.success("Consensus demo completed successfully.");
 }
 
-async function main(cfg: Config) {
-  console.log(`[${name}] Connected to ${cfg.baseUrl}`);
-  console.log(`[${name}] Timeout: ${cfg.timeout}ms | Retries: ${cfg.retries}`);
-  // TODO: implement your logic here
-  console.log(`[${name}] Done.`);
-}
-
-const program = new Command();
-program.name("agent-consensus-engine").description("Consensus protocol for agent collectives to agree on shared facts or decisions").version("1.0.0")
-  .option("-c, --config <path>", "Config file path", "config.json")
-  .option("-v, --verbose", "Verbose mode")
-  .action(async (opts) => {
-    const cfg = loadConfig();
-    if (opts.verbose) console.log("Verbose mode on");
-    try { await main(cfg); }
-    catch (e) { console.error(`Error: ${e}`); process.exit(1); }
-  });
-program.parse(process.argv);
+run().catch(err => {
+  mainLogger.error(`Fatal error: ${err.message}`);
+  process.exit(1);
+});
